@@ -33,7 +33,6 @@ class PostFormTests(TestCase):
     @classmethod
     def tearDownClass(cls):
         super().tearDownClass()
-        # Метод shutil.rmtree удаляет директорию и всё её содержимое
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
@@ -179,8 +178,13 @@ class CommentFormTests(TestCase):
             data=form_data,
             follow=True
         )
-        self.assertRedirects(
-            response,
-            f'/auth/login/?next=/posts/{CommentFormTests.post.pk}/comment/'
+        self.assertRedirects(response, reverse(
+            'users:login'
+        )
+            + '?next='
+            + reverse(
+                'posts:add_comment',
+                kwargs={'post_id': CommentFormTests.post.pk}
+        )
         )
         self.assertEqual(Comment.objects.count(), comments_count)

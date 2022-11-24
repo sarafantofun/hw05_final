@@ -165,18 +165,15 @@ class PostPagesTests(TestCase):
     def test_cache_index(self):
         """Проверка хранения и очищения кэша для index."""
         response = self.authorized_client.get(reverse('posts:index'))
-        posts = response.content
         Post.objects.create(
             text='Новейший текст',
             author=self.user,
         )
         response_old = self.authorized_client.get(reverse('posts:index'))
-        old_posts = response_old.content
-        self.assertEqual(old_posts, posts)
+        self.assertEqual(response_old.content, response.content)
         cache.clear()
         response_new = self.authorized_client.get(reverse('posts:index'))
-        new_posts = response_new.content
-        self.assertNotEqual(old_posts, new_posts)
+        self.assertNotEqual(response_old.content, response_new.content)
 
 
 class PaginatorViewsTest(TestCase):
@@ -196,7 +193,7 @@ class PaginatorViewsTest(TestCase):
                     group=cls.group,
                     text='Тестовый пост' + str(i),
                 )
-                for i in range(13)
+                for i in range(settings.NUM_PAGE + settings.NUM_PAGE2)
             ]
         )
         cls.URLS = [
@@ -234,9 +231,16 @@ class FollowViewsTest(TestCase):
         cls.user2 = User.objects.create_user(username='notTanya')
         cls.user3 = User.objects.create_user(username='somebogy')
         cls.post1 = Post.objects.create(
-            author=cls.user1,
+            author=FollowViewsTest.user1,
             text='Тестовый пост Юзера1',
         )
+        cls.reverse_follow_user1 = reverse('posts:profile_follow', kwargs={
+            'username': FollowViewsTest.user1
+        })
+        cls.reverse_unfollow_user1 = reverse('posts:profile_unfollow', kwargs={
+            'username': FollowViewsTest.user1
+        })
+        cls.reverse_follow_index = reverse('posts:follow_index')
 
     def setUp(self):
         cache.clear()
@@ -251,53 +255,39 @@ class FollowViewsTest(TestCase):
         """Авторизованный пользователь может подписываться на
         других пользователей и удалять их из подписок.
         """
-        self.authorized_client3.get(
-            reverse('posts:profile_follow', kwargs={
-                'username': FollowViewsTest.user1
-            })
-        )
+        self.authorized_client3.get(FollowViewsTest.reverse_follow_user1)
         first_object = Follow.objects.get(id=1)
         self.assertEqual(first_object.author, FollowViewsTest.user1)
         self.assertEqual(first_object.user, FollowViewsTest.user3)
         follow_count = Follow.objects.count()
-        self.authorized_client3.get(
-            reverse('posts:profile_unfollow', kwargs={
-                'username': FollowViewsTest.user1
-            })
-        )
+        self.authorized_client3.get(FollowViewsTest.reverse_unfollow_user1)
         follow_count2 = Follow.objects.count()
         self.assertNotEqual(follow_count, follow_count2)
 
     def test_new_post_in_right_follow_location(self):
         """Новая запись пользователя появляется в ленте тех,
-        кто на него подписан и не появляется в ленте тех, кто не подписан.
+        кто на него подписан.
         """
-        self.authorized_client3.get(
-            reverse('posts:profile_follow', kwargs={
-                'username': FollowViewsTest.user1
-            })
+        self.authorized_client3.get(FollowViewsTest.reverse_follow_user1)
+        response = self.authorized_client3.get(
+            FollowViewsTest.reverse_follow_index
         )
-        responce = self.authorized_client3.get(
-            reverse('posts:profile', kwargs={
-                'username': FollowViewsTest.user1
-            })
+        first_object = response.context['page_obj'][0]
+        self.assertEqual(first_object.text, FollowViewsTest.post1.text)
+
+    def test_new_post_not_in_unfollow_location(self):
+        """Новая запись пользователя не появляется в ленте тех,
+        кто не подписан.
+        """
+        response = self.authorized_client2.get(
+            FollowViewsTest.reverse_follow_index
         )
-        self.assertTrue('following' in responce.context)
-        self.assertTrue(responce.context['following'] is True)
-        responce = self.authorized_client2.get(
-            reverse('posts:profile', kwargs={
-                'username': FollowViewsTest.user1
-            })
+        self.assertNotIn(
+            FollowViewsTest.post1.text, response.context['page_obj']
         )
-        self.assertTrue('following' in responce.context)
-        self.assertTrue(responce.context['following'] is False)
 
     def test_author_cant_follow_himself(self):
         """Проверка, что нельзя подписаться на самого себя."""
-        self.authorized_client.get(
-            reverse('posts:profile_follow', kwargs={
-                'username': FollowViewsTest.user1
-            })
-        )
+        self.authorized_client.get(FollowViewsTest.reverse_follow_user1)
         follow_count = Follow.objects.count()
         self.assertEqual(follow_count, 0)

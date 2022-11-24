@@ -2,6 +2,7 @@ from http import HTTPStatus
 
 from django.core.cache import cache
 from django.test import Client, TestCase
+from django.urls import reverse
 
 from ..models import Group, Post, User
 
@@ -36,6 +37,7 @@ class PostURLTests(TestCase):
                 'posts/create_post.html', HTTPStatus.OK
             ),
             '/create/': ('posts/create_post.html', HTTPStatus.OK),
+            '/follow/': ('posts/follow.html', HTTPStatus.OK),
         }
 
     def setUp(self):
@@ -79,21 +81,19 @@ class PostURLTests(TestCase):
         response = self.guest_client.get('/unexisting_page/')
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
-    def test_post_create_url_redirect_anonymous_on_auth_login(self):
-        """Страница /create/ перенаправит анонимного пользователя
+    def test_private_url_redirect_anonymous_on_auth_login(self):
+        """Приватные страницы перенаправят анонимного пользователя
         на страницу логина.
         """
-        response = self.guest_client.get('/create/', follow=True)
-        self.assertRedirects(
-            response, '/auth/login/?next=/create/')
-
-    def test_post_edit_url_redirect_anonymous_on_auth_login(self):
-        """Страница /posts/test-post_id/edit/ перенаправит анонимного
-        пользователя на страницу логина.
-        """
-        response = self.client.get(f'/posts/{self.post.pk}/edit/', follow=True)
-        self.assertRedirects(
-            response, (f'/auth/login/?next=/posts/{self.post.pk}/edit/'))
+        for url, (_, _) in PostURLTests.PRIVATE_URLS.items():
+            with self.subTest(url=url):
+                response = self.guest_client.get(url, follow=True)
+                self.assertRedirects(response, reverse(
+                    'users:login'
+                )
+                    + '?next='
+                    + url
+                )
 
     def test_post_edit_url_redirect_nonauthor_on_post_detail(self):
         """Страница /posts/test-post_id/edit/ перенаправит не автора поста,

@@ -9,7 +9,7 @@ from .utils import get_page_obj
 
 @cache_page(20, key_prefix='index_page')
 def index(request):
-    post_list = Post.objects.select_related('group', 'author').all()
+    post_list = Post.objects.select_related('group', 'author')
     return render(
         request,
         'posts/index.html',
@@ -19,7 +19,7 @@ def index(request):
 
 def group_posts(request, slug):
     group = get_object_or_404(Group, slug=slug)
-    posts = group.posts.select_related('author').all()
+    posts = group.posts.select_related('author')
     return render(
         request,
         'posts/group_list.html',
@@ -29,27 +29,18 @@ def group_posts(request, slug):
 
 def profile(request, username):
     author = get_object_or_404(User, username=username)
-    userposts = author.posts.select_related('group').all()
-    if request.user.is_authenticated:
-        if request.user.follower.filter(author=author).exists():
-            following = True
-        else:
-            following = False
-        return render(
-            request,
-            'posts/profile.html',
-            {
-                'author': author,
-                'page_obj': get_page_obj(userposts, request),
-                'following': following,
-            }
-        )
+    userposts = author.posts.select_related('group')
+    following = (
+        request.user != username and request.user.is_authenticated
+        and request.user.follower.filter(author=author)
+    )
     return render(
         request,
         'posts/profile.html',
         {
             'author': author,
             'page_obj': get_page_obj(userposts, request),
+            'following': following,
         }
     )
 
@@ -57,7 +48,7 @@ def profile(request, username):
 def post_detail(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None, )
-    comments = post.comments.select_related('author').all()
+    comments = post.comments.select_related('author')
     return render(
         request,
         'posts/post_detail.html',

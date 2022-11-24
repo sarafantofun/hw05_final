@@ -131,6 +131,7 @@ NUM_PAGE = 10
 NUM_PAGE2 = 3
 NUM_LETTER = 15
 
+
 CSRF_FAILURE_VIEW = 'core.views.csrf_failure'
 
 CACHES = {
